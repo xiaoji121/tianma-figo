@@ -114,7 +114,6 @@ module.exports = function(figoConfigPath) {
 
             var check = function() {
                 var ext = Path.extname(path);
-                console.log(ext);
                 return '.js'.indexOf(ext) !== -1
             };
 
@@ -135,8 +134,6 @@ module.exports = function(figoConfigPath) {
                     req.url(path);
 
                     var replacedStr = replace(data, figoStr);
-
-                    console.log(replacedStr);
 
                     if (err) {
                         res(err);
