@@ -13,7 +13,6 @@
 
 var Path = require('path');
 var fs = require('fs');
-var iconv = require('iconv-lite');
 var PATTERN_DATAURL = /^data:.*?base64,(.*)$/;
 
 /**
@@ -126,8 +125,7 @@ module.exports = function(figoConfigPath) {
                 if (err) {
                     return res(err);
                 }
-                var encoding = req.charset();
-                var figoStr = iconv.decode(buf, encoding);
+                var figoStr = buf.toString();
 
                 getOriginalContent(path, load, function (err, meta, data) {
                     // Restore the original path.
