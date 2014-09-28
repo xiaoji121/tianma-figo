@@ -34,6 +34,7 @@ function loader(req, res, path, callback) {
         });
     }
 
+
     req.url(path)(function (err) {
         if (err) {
             callback(err);
@@ -120,6 +121,9 @@ module.exports = function(figoConfigPath) {
                 return res(err);
             }
 
+            // Avoid getting a 302 response.
+            req.head('if-modified-since', '');
+
 
             getFigoContent(figoConfigPath || '', function(err, buf) {
                 if (err) {
@@ -137,9 +141,8 @@ module.exports = function(figoConfigPath) {
                         res(err);
                     } else {
                         res.status(200)
-                            .head('content-type', meta.mime)
-                            .head('last-modified', new Date(meta.mtime)
-                                .toGMTString())
+                            .head('content-type', 'application/javascript')
+                            .head('last-modified', new Date(Date.now()).toGMTString())
                             .data(replacedStr)();
                     }
                 });
