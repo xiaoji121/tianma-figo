@@ -13,71 +13,10 @@
 
 var Path = require('path');
 var fs = require('fs');
-var PATTERN_DATAURL = /^data:.*?base64,(.*)$/;
 
-/**
- * Load files from subsequent filters.
- * @param req {Function}
- * @param res {Function}
- * @param path {string}
- * @param callback {Function}
- */
-function loader(req, res, path, callback) {
-    var re = path.match(PATTERN_DATAURL);
-
-    if (re) { // Data URL.
-        return callback(null, {
-            path: path,
-            data: new Buffer(re[1], 'base64').toString(),
-            mime: 'application/json',
-            mtime: Date.now()
-        });
-    }
-
-
-    req.url(path)(function (err) {
-        if (err) {
-            callback(err);
-        } else {
-            callback(null, {
-                path: req.path,
-                data: res.toString(),
-                mime: res.type()
-                    // Set a default MIME.
-                    || 'application/octet-stream',
-                mtime: new Date(
-                        res.head('last-modified')
-                        // Set default mtime to now.
-                        || Date.now()).getTime()
-            });
-        }
-    });
-}
-
-function getOriginalContent(path, loader, callback) {
-    var meta = {
-        mime: null,
-        mtime: 0
-    };
-
-    loader(path, function (err, file) {
-        if (err) {
-            return callback(err);
-        }
-
-        if (meta.mime && meta.mime !== file.mime) {
-            callback(new Error('Inconsistent MIME type'));
-        } else {
-            meta.mime = file.mime;
-        }
-
-        meta.mtime = Math.max(meta.mtime, file.mtime);
-
-        return callback(null, meta, file.data);
-    });
-}
-
-
+var rFE = /FE.test=\{.*?\}/g;
+var rFD = /FD.test=\{.*?\}/g;
+var rLOFTY = /lofty.test=\{.*?\}/g;
 
 function getFigoContent(figoConfigPath, callback) {
 
@@ -91,16 +30,31 @@ function getFigoContent(figoConfigPath, callback) {
 
 }
 
+function check(path, data) {
+    var ext = Path.extname(path);
+
+    var isFE = rFE.test(data);
+    var isFD = rFD.test(data);
+    var isLOFTY = rLOFTY.test(data);
+
+    rFE.lastIndex = 0;
+    isFD.lastIndex = 0;
+    isLOFTY.lastIndex = 0;
+
+
+    return ('.js'.indexOf(ext) !== -1) && (isFE || isFD || isLOFTY);
+}
+
 
 function replace(data, replaceto) {
     var fetest = 'FE.test={' + replaceto + '}';
     var fdtest = 'FD.test={' + replaceto + '}';
     var loftytest = 'lofty.test={' + replaceto + '}';
 
-    var content = data.replace(/FE.test=\{.*?\}/g, fetest);
+    var content = data.replace(rFE, fetest);
 
-    content = content.replace(/FD.test=\{.*?\}/g, fdtest);
-    content = content.replace(/lofty.test=\{.*?\}/g, loftytest);
+    content = content.replace(rFD, fdtest);
+    content = content.replace(rLOFTY, loftytest);
 
     return content;
 }
@@ -108,44 +62,29 @@ function replace(data, replaceto) {
 module.exports = function(figoConfigPath) {
 
     return function(req, res) {
+        // disable cache
+        req.head('if-modified-since', '');
+        req.head('if-none-match', '');
+
         req(function (err) {
-            var load = loader.bind(null, req, res);
             var path = req.path;
+            var orignalData = res.toString();
 
-            var check = function() {
-                var ext = Path.extname(path);
-                return '.js'.indexOf(ext) !== -1
-            };
-
-            if (!check()) {
+            if (!check(path, orignalData)) {
                 return res(err);
             }
-
-            // Avoid getting a 302 response.
-            req.head('if-modified-since', '');
-
 
             getFigoContent(figoConfigPath || '', function(err, buf) {
                 if (err) {
                     return res(err);
                 }
                 var figoStr = buf.toString();
+                var replacedStr = replace(orignalData, figoStr);
 
-                getOriginalContent(path, load, function (err, meta, data) {
-                    // Restore the original path.
-                    req.url(path);
-
-                    var replacedStr = replace(data, figoStr);
-
-                    if (err) {
-                        res(err);
-                    } else {
-                        res.status(200)
-                            .head('content-type', 'application/javascript')
-                            .head('last-modified', new Date(Date.now()).toGMTString())
-                            .data(replacedStr)();
-                    }
-                });
+                res.status(200)
+                    .head('content-type', 'application/javascript')
+                    .head('last-modified', new Date(Date.now()).toGMTString())
+                    .data(replacedStr)();
 
             })
 
