@@ -38,8 +38,8 @@ function check(path, data) {
     var isLOFTY = rLOFTY.test(data);
 
     rFE.lastIndex = 0;
-    isFD.lastIndex = 0;
-    isLOFTY.lastIndex = 0;
+    rFD.lastIndex = 0;
+    rLOFTY.lastIndex = 0;
 
 
     return ('.js'.indexOf(ext) !== -1) && (isFE || isFD || isLOFTY);
